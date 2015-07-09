@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+
+# file: dockerfilemerge.rb
+
+require 'lineparser'
+
+class DockerfileMerge
+
+  attr_reader :to_s
+
+  def initialize(s)
+
+    patterns = [
+      [:root, /INCLUDE\s*(?<path>.*)?/, :include],
+        [:include, /(?<path>.*)/, :dockerfile],
+      [:root, /MAINTAINER (?<name>.*)/, :maintainer],
+      [:root, /RUN (?<command>.*)/, :run],
+      [:all, /#/, :comment]
+    ]
+
+    lp = LineParser.new patterns, ignore_blank_lines: false
+    a = lp.parse s
+
+    lines = []
+
+    a.each do |x|
+      
+      case x.first
+      when :comment
+        lines << x[2].first
+        lines << '' if x[2].length > 1
+
+      when :include
+
+        if x[1][:path].length > 0 then
+          lines << x[1][:path]
+        else
+          puts 'x3 @ ' + x[3].inspect
+          x[3].each{|source| lines << source[1][:path]}
+        end
+
+        lines << '' if x[2].length > 1
+
+      when :maintainer
+        lines << x[2].first
+        lines << '' if x[2].length > 1
+      when :run
+        lines << x[2].first
+        lines << '' if x[2].length > 1
+      end
+      
+    end
+
+    @to_s = lines.join("\n")
+  end
+end
