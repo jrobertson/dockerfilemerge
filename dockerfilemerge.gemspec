@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'dockerfilemerge'
-  s.version = '0.1.0'
+  s.version = '0.2.0'
   s.summary = 'Merge 2 or more Dockerfiles into 1 Dockerfile'
   s.authors = ['James Robertson']
   s.files = Dir['lib/dockerfilemerge.rb']

@@ -19,63 +19,64 @@ class DockerfileMerge
       [:all, /#/, :comment]
     ]
 
-    lp = LineParser.new patterns, ignore_blank_lines: false
-    a = lp.parse s
+    a = LineParser.new(patterns, ignore_blank_lines: false).parse s
 
     lines = []
 
-    a.each do |x|
+    a.each do |label, h, r, c| # h=hash, r=remaining, c=children
       
-      case x.first
+      case label
       when :comment
-        lines << x[2].first
-        lines << '' if x[2].length > 1
+        
+        lines << r.first
+        lines << '' if r.length > 1
 
       when :include
 
-        if x[1][:path].length > 0 then
-          
-          path = x[1][:path]
-          
-          buffer, type = RXFHelper.read(path)
-          rows = buffer.lines.map(&:chomp)
-          lines << "\n\n# copied from " + path if type == :url
-          rows.grep(/^# Pull /).each {|x| rows.delete x}
-          lines.concat rows
-          
-        else
-          
-          x[3].each do |source| 
-            path = source[1][:path]
-            buffer, type = RXFHelper.read(path)
-            rows = buffer.lines.map(&:chomp)
-            lines << "\n\n# copied from " + path if type == :url
-            rows.grep(/^# Pull /).each {|x| rows.delete x}
-            lines.concat rows
-            
-          end
-        end
-
-        lines << '' if x[2].length > 1
+        h[:path].length > 0 ? merge_file(lines, h[:path]) :
+                  c.each {|source| merge_file lines, source[1][:path] }
+        lines << '' if r.length > 1
 
       when :maintainer
 
         maintainers = lines.grep(/MAINTAINER/)
         i = lines.index maintainers.shift
-        lines[i] = x[2].first
+        lines[i] = r.first
+        
         maintainers.each {|x| lines.delete x}
         
       when :run
+        
         i = lines.index lines.grep(/RUN/).last
-        lines.insert(i+1, x[2].first)
-        lines.insert(i+2, '') if x[2].length > 1
+        lines.insert(i+1, r.first)
+        
+        if r.length > 1 then
+          lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip)
+        end
       end
       
     end
     
-    lines.grep(/^FROM /)[1..-1].each {|x| lines.delete x}
-    lines.grep(/^CMD/)[0..-2].each {|x| lines.delete x}
+    singlify lines, /^FROM /
+    singlify lines, /^CMD /
 
     @to_s = lines.join("\n")
+  end
+  
+  private
+  
+  def merge_file(lines, path)
+    
+    buffer, type = RXFHelper.read(path)
+    rows = buffer.lines.map(&:chomp)
+    lines << "\n\n# copied from " + path if type == :url
+    rows.grep(/^# Pull /).each {|x| rows.delete x}
+
+    lines.concat rows
+  end  
+  
+  def singlify(lines, regex)
+    i = 0
+    lines.reject! {|x| found = x[regex]; i += 1 if found;  i > 1 and found }
   end
 end
