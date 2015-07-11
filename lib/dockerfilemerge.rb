@@ -65,9 +65,8 @@ class DockerfileMerge
       
     end
     
-    singlify lines, /^FROM /
-    singlify lines, /^CMD /
-    lines.grep(/^# Pull /)[0..-2].each {|x| lines.delete x}
+    singlify lines, /^\s*FROM /
+    lines.grep(/^\s*CMD /)[0..-2].each {|x| lines.delete x}
 
     @to_s = lines.join("\n")
   end
@@ -76,7 +75,9 @@ class DockerfileMerge
   
   def merge_file(lines, path)
     
-    buffer, type = RXFHelper.read(path)
+    raw_buffer, type = RXFHelper.read(path)
+    buffer = raw_buffer[/^\bINCLUDE\b/] ? \
+          DockerfileMerge.new(raw_buffer).to_s : raw_buffer
     
     rows = buffer.lines.map(&:chomp)
     lines << "\n\n# copied from " + path if type == :url
