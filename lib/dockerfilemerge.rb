@@ -66,7 +66,8 @@ class DockerfileMerge
     end
     
     singlify lines, /^FROM /
-    singlify lines, /^CMD /    
+    singlify lines, /^CMD /
+    lines.grep(/^# Pull /)[0..-2].each {|x| lines.delete x}
 
     @to_s = lines.join("\n")
   end
