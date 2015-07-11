@@ -9,8 +9,10 @@ class DockerfileMerge
 
   attr_reader :to_s
 
-  def initialize(s)
+  def initialize(raw_s)
 
+    s, type = RXFHelper.read(raw_s)
+    
     patterns = [
       [:root, /INCLUDE\s*(?<path>.*)?/, :include],
         [:include, /(?<path>.*)/, :dockerfile],
@@ -19,9 +21,16 @@ class DockerfileMerge
       [:all, /#/, :comment]
     ]
 
+    s.sub!(/\A# Dockermergefile/,'# Dockerfile')
     a = LineParser.new(patterns, ignore_blank_lines: false).parse s
 
     lines = []
+  
+    if type == :url then
+      lines << '# Generated ' + Time.now.strftime("%a %d-%b-%Y %-I:%M%P")
+      lines << '# source: ' + raw_s
+    end
+
 
     a.each do |label, h, r, c| # h=hash, r=remaining, c=children
       
@@ -57,7 +66,7 @@ class DockerfileMerge
     end
     
     singlify lines, /^FROM /
-    singlify lines, /^CMD /
+    singlify lines, /^CMD /    
 
     @to_s = lines.join("\n")
   end

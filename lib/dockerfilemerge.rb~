@@ -48,11 +48,10 @@ class DockerfileMerge
       when :run
         
         i = lines.index lines.grep(/RUN/).last
-        lines.insert(i+1, r.first)
-        
-        if r.length > 1 then
-          lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip)
-        end
+        i+=1 while lines[i][/\\\s*$/]
+        lines.insert(i+1, r.first)        
+        lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip) if r.length > 1
+
       end
       
     end
@@ -68,6 +67,7 @@ class DockerfileMerge
   def merge_file(lines, path)
     
     buffer, type = RXFHelper.read(path)
+    
     rows = buffer.lines.map(&:chomp)
     lines << "\n\n# copied from " + path if type == :url
     rows.grep(/^# Pull /).each {|x| rows.delete x}
