@@ -14,6 +14,7 @@ class DockerfileMerge
     s, type = RXFHelper.read(raw_s)
     
     patterns = [
+      [:root, /FROM\s+(?<from>.*)/, :from],
       [:root, /INCLUDE\s*(?<path>.*)?/, :include],
         [:include, /(?<path>.*)/, :dockerfile],
       [:root, /MAINTAINER (?<name>.*)/, :maintainer],
@@ -34,10 +35,17 @@ class DockerfileMerge
 
     a.each do |label, h, r, c| # h=hash, r=remaining, c=children
       
+      line = r.first
+      
       case label
+      when :from
+        
+        lines << line
+        lines << '' if r.length > 1        
+        
       when :comment
         
-        lines << r.first
+        lines << line
         lines << '' if r.length > 1
 
       when :include
@@ -50,7 +58,7 @@ class DockerfileMerge
 
         maintainers = lines.grep(/MAINTAINER/)
         i = lines.index maintainers.shift
-        lines[i] = r.first
+        lines[i] = line
         
         maintainers.each {|x| lines.delete x}
         
@@ -58,7 +66,7 @@ class DockerfileMerge
         
         i = lines.index lines.grep(/RUN/).last
         i+=1 while lines[i][/\\\s*$/]
-        lines.insert(i+1, r.first)        
+        lines.insert(i+1, line)
         lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip) if r.length > 1
 
       end
@@ -74,7 +82,7 @@ class DockerfileMerge
   private
   
   def merge_file(lines, path)
-    
+
     raw_buffer, type = RXFHelper.read(path)
     buffer = raw_buffer[/^\bINCLUDE\b/] ? \
           DockerfileMerge.new(raw_buffer).to_s : raw_buffer
