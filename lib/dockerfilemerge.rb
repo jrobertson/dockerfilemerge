@@ -19,6 +19,7 @@ class DockerfileMerge
         [:include, /(?<path>.*)/, :dockerfile],
       [:root, /MAINTAINER (?<name>.*)/, :maintainer],
       [:root, /RUN (?<command>.*)/, :run],
+      [:root, /-\/[^\/]+\/(?:\[[^\]]+\])?/, :del],
       [:all, /#/, :comment]
     ]
 
@@ -69,18 +70,42 @@ class DockerfileMerge
         lines.insert(i+1, line)
         lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip) if r.length > 1
 
-      end
+      when :del
+
+        exp, filter = line.match(/-\/([^\/]+)\/(\[[^\]]+\])?/).captures
+
+        name = if filter then
+
+          case filter[1..-2]
+          when'0..-2'
+            :singlify_last
+          when '1..-1'
+            :singlify_first
+          else
+            puts 'unrecognised selector'
+          end
+        else
+          :delete_all
+        end        
+        
+        method(name).call(lines, exp) if name.is_a? Symbol
+        
+      end      
       
     end
     
-    singlify lines, /^\s*FROM /
-    lines.grep(/^\s*CMD /)[0..-2].each {|x| lines.delete x}
+    singlify_first lines, /^\s*FROM /
+    singlify_last lines, /^\s*CMD /
 
     @to_s = lines.join("\n")
   end
   
   private
   
+  def delete_all(lines, regex)
+    lines.reject! {|x| x[regex]}
+  end
+    
   def merge_file(lines, path)
 
     raw_buffer, type = RXFHelper.read(path)
@@ -94,8 +119,20 @@ class DockerfileMerge
     lines.concat rows
   end  
   
-  def singlify(lines, regex)
+  # removes any matching lines after the 1st matching line
+  #
+  def singlify_first(lines, raw_regex)
+    
+    regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
     i = 0
     lines.reject! {|x| found = x[regex]; i += 1 if found;  i > 1 and found }
   end
+  
+  # removes any matching lines before the last matching line
+  #
+  def singlify_last(lines, raw_regex)
+    
+    regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
+    lines.grep(regex)[0..-2].each {|x| lines.delete x}
+  end  
 end
