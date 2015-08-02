@@ -64,6 +64,8 @@ class DockerfileMerge
         maintainers.each {|x| lines.delete x}
         
       when :run
+
+        # find the last run command and add the present run command after it
         
         i = lines.index lines.grep(/RUN/).last
         i+=1 while lines[i][/\\\s*$/]
@@ -96,8 +98,16 @@ class DockerfileMerge
     
     singlify_first lines, /^\s*FROM /
     singlify_last lines, /^\s*CMD /
+    s = lines.join("\n")
 
-    @to_s = lines.join("\n")
+    rm_sources = /rm -rf \/var\/lib\/apt\/lists\/\*/
+    rm_sources_count = s.scan(rm_sources).length
+    
+    if rm_sources_count > 1 then
+      (rm_sources_count - 1).times { remove_command(rm_sources,s) }
+    end
+    
+    @to_s = s
   end
   
   private
@@ -117,7 +127,11 @@ class DockerfileMerge
     rows.grep(/^# Pull /).each {|x| rows.delete x}
 
     lines.concat rows
-  end  
+  end
+  
+  def remove_command(regex, s)
+    s.sub!(/(?:RUN\s+|\\?\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
+  end
   
   # removes any matching lines after the 1st matching line
   #
