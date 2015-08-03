@@ -129,8 +129,9 @@ class DockerfileMerge
     lines.concat rows
   end
   
-  def remove_command(regex, s)
-    s.sub!(/(?:RUN\s+|\\?\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
+  def remove_command(regex, s)    
+    s.sub!(/(?:\\?\s*&&\s+)#{regex}\s*$|\
+           (?:RUN\s+|\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
   end
   
   # removes any matching lines after the 1st matching line
