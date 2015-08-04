@@ -12,7 +12,7 @@ class DockerfileMerge
   def initialize(raw_s)
 
     s, type = RXFHelper.read(raw_s)
-    
+
     patterns = [
       [:root, /FROM\s+(?<from>.*)/, :from],
       [:root, /INCLUDE\s*(?<path>.*)?/, :include],
@@ -25,6 +25,13 @@ class DockerfileMerge
 
     s.sub!(/\A# Dockermergefile/,'# Dockerfile')
     a = LineParser.new(patterns, ignore_blank_lines: false).parse s
+    maintainer = a.grep /MAINTAINER/
+    
+    if maintainer.empty? then      
+
+      from = a.assoc :include      
+      a.insert(a.index(from) + 1, [:maintainer, {},['MAINTAINER unknown']])
+    end
 
     lines = []
   
@@ -33,19 +40,18 @@ class DockerfileMerge
       lines << '# source: ' + raw_s
     end
 
-
     a.each do |label, h, r, c| # h=hash, r=remaining, c=children
       
       line = r.first
       
       case label
       when :from
-        
+
         lines << line
         lines << '' if r.length > 1        
         
       when :comment
-        
+
         lines << line
         lines << '' if r.length > 1
 
@@ -58,10 +64,27 @@ class DockerfileMerge
       when :maintainer
 
         maintainers = lines.grep(/MAINTAINER/)
-        i = lines.index maintainers.shift
-        lines[i] = line
+
+        if maintainers.length > 0 then
+    
+          while maintainers.length > 1 do
+            i = lines.rindex maintainers.pop
+            lines.delete_at i
+            maintainers = lines.grep(/MAINTAINER/)
+          end
+
+          i = lines.index maintainers[0]
+
+          lines[i] = line unless line[/MAINTAINER unknown/]
+        elsif maintainers.empty?
+
+          from = lines.grep /^ *FROM\b/
+          i = lines.index from[0]
+          lines.insert(i+1, line) unless line[/MAINTAINER unknown/]
+
+        end        
         
-        maintainers.each {|x| lines.delete x}
+
         
       when :run
 

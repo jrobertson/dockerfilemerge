@@ -12,7 +12,7 @@ class DockerfileMerge
   def initialize(raw_s)
 
     s, type = RXFHelper.read(raw_s)
-    
+
     patterns = [
       [:root, /FROM\s+(?<from>.*)/, :from],
       [:root, /INCLUDE\s*(?<path>.*)?/, :include],
@@ -40,12 +40,12 @@ class DockerfileMerge
       
       case label
       when :from
-        
+
         lines << line
         lines << '' if r.length > 1        
         
       when :comment
-        
+
         lines << line
         lines << '' if r.length > 1
 
@@ -58,8 +58,15 @@ class DockerfileMerge
       when :maintainer
 
         maintainers = lines.grep(/MAINTAINER/)
-        i = lines.index maintainers.shift
-        lines[i] = line
+        
+        if maintainers.length > 0 then
+          i = lines.index maintainers.shift
+          lines[i] = line
+        else
+          from = lines.grep /^ *FROM\b/
+          i = lines.index from[0]
+          lines.insert(i+1, line)
+        end        
         
         maintainers.each {|x| lines.delete x}
         
@@ -130,8 +137,7 @@ class DockerfileMerge
   end
   
   def remove_command(regex, s)    
-    s.sub!(/(?:\\?\s*&&\s+)#{regex}\s*$|\
-           (?:RUN\s+|\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
+    s.sub!(/(?:\\?\s*&&\s+)#{regex}\s*$|(?:RUN\s+|\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
   end
   
   # removes any matching lines after the 1st matching line
