@@ -88,13 +88,10 @@ class DockerfileMerge
         
       when :run
 
-        # find the last run command and add the present run command after it
+        lines << line
+        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
         
-        i = lines.index lines.grep(/RUN/).last
-        i+=1 while lines[i][/\\\s*$/]
-        lines.insert(i+1, line)
-        lines.insert(i+2, '  ' + r[1..-1].join("\n  ").rstrip) if r.length > 1
-
+        
       when :del
 
         exp, filter = line.match(/-\/([^\/]+)\/(\[[^\]]+\])?/).captures
