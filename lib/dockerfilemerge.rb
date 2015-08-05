@@ -14,6 +14,8 @@ class DockerfileMerge
     s, type = RXFHelper.read(raw_s)
 
     patterns = [
+      [:root, /^\s*ADD\s+(?<add>.*)/, :add],
+      [:root, /^\s*COPY\s+(?<copy>.*)/, :copy],
       [:root, /FROM\s+(?<from>.*)/, :from],
       [:root, /INCLUDE\s*(?<path>.*)?/, :include],
         [:include, /(?<path>.*)/, :dockerfile],
@@ -45,15 +47,29 @@ class DockerfileMerge
       line = r.first
       
       case label
-      when :from
+        
+        
+      when :add
 
         lines << line
-        lines << '' if r.length > 1        
+        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
         
       when :comment
 
         lines << line
         lines << '' if r.length > 1
+        
+        
+      when :copy
+
+        lines << line
+        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1        
+        
+      when :from
+
+        lines << line
+        lines << '' if r.length > 1        
+        
 
       when :include
 
