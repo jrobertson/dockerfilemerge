@@ -5,184 +5,231 @@
 require 'lineparser'
 require 'rxfhelper'
 
-class DockerfileMerge
-
-  attr_reader :to_s
-
-  def initialize(raw_s)
-
-    s, type = RXFHelper.read(raw_s)
-
-    patterns = [
-      [:root, /^\s*ADD\s+(?<add>.*)/, :add],
-      [:root, /^\s*COPY\s+(?<copy>.*)/, :copy],
-      [:root, /FROM\s+(?<from>.*)/, :from],
-      [:root, /INCLUDE\s*(?<path>.*)?/, :include],
-        [:include, /(?<path>.*)/, :dockerfile],
-      [:root, /MAINTAINER (?<name>.*)/, :maintainer],
-      [:root, /RUN (?<command>.*)/, :run],
-      [:root, /-\/[^\/]+\/(?:\[[^\]]+\])?/, :del],
-      [:all, /#/, :comment]
-    ]
-
-    s.sub!(/\A# Dockermergefile/,'# Dockerfile')
-    a = LineParser.new(patterns, ignore_blank_lines: false).parse s
-    maintainer = a.grep /MAINTAINER/
-    
-    if maintainer.empty? then      
-
-      from = a.assoc :include      
-      a.insert(a.index(from) + 1, [:maintainer, {},['MAINTAINER unknown']])
-    end
-
-    lines = []
+module Dockerfile
   
-    if type == :url then
-      lines << '# Generated ' + Time.now.strftime("%a %d-%b-%Y %-I:%M%P")
-      lines << '# source: ' + raw_s
-    end
+  class Merge
 
-    a.each do |label, h, r, c| # h=hash, r=remaining, c=children
+    attr_reader :to_s
+
+    def initialize(raw_s)
+
+      s, type = RXFHelper.read(raw_s)
+
+      patterns = [
+        [:root, /^\s*ADD\s+(?<add>.*)/, :add],
+        [:root, /^\s*COPY\s+(?<copy>.*)/, :copy],
+        [:root, /FROM\s+(?<from>.*)/, :from],
+        [:root, /INCLUDE\s*(?<path>.*)?/, :include],
+          [:include, /(?<path>.*)/, :dockerfile],
+        [:root, /MAINTAINER (?<name>.*)/, :maintainer],
+        [:root, /RUN (?<command>.*)/, :run],
+        [:root, /-\/[^\/]+\/(?:\[[^\]]+\])?/, :del],
+        [:all, /#/, :comment]
+      ]
+
+      s.sub!(/\A# Dockermergefile/,'# Dockerfile')
+      a = LineParser.new(patterns, ignore_blank_lines: false).parse s
+      maintainer = a.grep /MAINTAINER/
       
-      line = r.first
-      
-      case label
-        
-        
-      when :add
+      if maintainer.empty? then      
 
-        lines << line
-        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
-        
-      when :comment
+        from = a.assoc :include      
+        a.insert(a.index(from) + 1, [:maintainer, {},['MAINTAINER unknown']])
+      end
 
-        lines << line
-        lines << '' if r.length > 1
-        
-        
-      when :copy
-
-        lines << line
-        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1        
-        
-      when :from
-
-        lines << line
-        lines << '' if r.length > 1        
-        
-
-      when :include
-
-        h[:path].length > 0 ? merge_file(lines, h[:path]) :
-                  c.each {|source| merge_file lines, source[1][:path] }
-        lines << '' if r.length > 1
-
-      when :maintainer
-
-        maintainers = lines.grep(/MAINTAINER/)
-
-        if maintainers.length > 0 then
+      lines = []
     
-          while maintainers.length > 1 do
-            i = lines.rindex maintainers.pop
-            lines.delete_at i
-            maintainers = lines.grep(/MAINTAINER/)
-          end
+      if type == :url then
+        lines << '# Generated ' + Time.now.strftime("%a %d-%b-%Y %-I:%M%P")
+        lines << '# source: ' + raw_s
+      end
 
-          i = lines.index maintainers[0]
-
-          lines[i] = line unless line[/MAINTAINER unknown/]
-        elsif maintainers.empty?
-
-          from = lines.grep /^ *FROM\b/
-          i = lines.index from[0]
-          lines.insert(i+1, line) unless line[/MAINTAINER unknown/]
-
-        end        
+      a.each do |label, h, r, c| # h=hash, r=remaining, c=children
         
-
+        line = r.first
         
-      when :run
+        case label
+          
+          
+        when :add
 
-        lines << line
-        lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
-        
-        
-      when :del
+          lines << line
+          lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
+          
+        when :comment
 
-        exp, filter = line.match(/-\/([^\/]+)\/(\[[^\]]+\])?/).captures
+          lines << line
+          lines << '' if r.length > 1
+          
+          
+        when :copy
 
-        name = if filter then
+          lines << line
+          lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1        
+          
+        when :from
 
-          case filter[1..-2]
-          when'0..-2'
-            :singlify_last
-          when '1..-1'
-            :singlify_first
+          lines << line
+          lines << '' if r.length > 1        
+          
+
+        when :include
+
+          h[:path].length > 0 ? merge_file(lines, h[:path]) :
+                    c.each {|source| merge_file lines, source[1][:path] }
+          lines << '' if r.length > 1
+
+        when :maintainer
+
+          maintainers = lines.grep(/MAINTAINER/)
+
+          if maintainers.length > 0 then
+      
+            while maintainers.length > 1 do
+              i = lines.rindex maintainers.pop
+              lines.delete_at i
+              maintainers = lines.grep(/MAINTAINER/)
+            end
+
+            i = lines.index maintainers[0]
+
+            lines[i] = line unless line[/MAINTAINER unknown/]
+          elsif maintainers.empty?
+
+            from = lines.grep /^ *FROM\b/
+            i = lines.index from[0]
+            lines.insert(i+1, line) unless line[/MAINTAINER unknown/]
+
+          end        
+          
+
+          
+        when :run
+
+          lines << line
+          lines << '  ' + r[1..-1].join("\n  ").rstrip if r.length > 1
+          
+          
+        when :del
+
+          exp, filter = line.match(/-\/([^\/]+)\/(\[[^\]]+\])?/).captures
+
+          name = if filter then
+
+            case filter[1..-2]
+            when'0..-2'
+              :singlify_last
+            when '1..-1'
+              :singlify_first
+            else
+              puts 'unrecognised selector'
+            end
           else
-            puts 'unrecognised selector'
-          end
-        else
-          :delete_all
-        end        
+            :delete_all
+          end        
+          
+          method(name).call(lines, exp) if name.is_a? Symbol
+          
+        end      
         
-        method(name).call(lines, exp) if name.is_a? Symbol
-        
-      end      
+      end
+      
+      singlify_first lines, /^\s*FROM /
+      singlify_last lines, /^\s*CMD /
+      s = lines.join("\n")
+
+      rm_sources = /rm -rf \/var\/lib\/apt\/lists\/\*/
+      rm_sources_count = s.scan(rm_sources).length
+      
+      if rm_sources_count > 1 then
+        (rm_sources_count - 1).times { remove_command(rm_sources,s) }
+      end
+      
+      @to_s = s
+    end
+    
+    private
+    
+    def delete_all(lines, regex)
+      lines.reject! {|x| x[regex]}
+    end
+      
+    def merge_file(lines, path)
+
+      raw_buffer, type = RXFHelper.read(path)
+      buffer = raw_buffer[/^\bINCLUDE\b/] ? \
+            DockerfileMerge.new(raw_buffer).to_s : raw_buffer
+      
+      rows = buffer.lines.map(&:chomp)
+      lines << "\n\n# copied from " + path if type == :url
+      rows.grep(/^# Pull /).each {|x| rows.delete x}
+
+      lines.concat rows
+    end
+    
+    def remove_command(regex, s)    
+      s.sub!(/(?:\\?\s*&&\s+)#{regex}\s*$|(?:RUN\s+|\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
+    end
+    
+    # removes any matching lines after the 1st matching line
+    #
+    def singlify_first(lines, raw_regex)
+      
+      regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
+      i = 0
+      lines.reject! {|x| found = x[regex]; i += 1 if found;  i > 1 and found }
+    end
+    
+    # removes any matching lines before the last matching line
+    #
+    def singlify_last(lines, raw_regex)
+      
+      regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
+      lines.grep(regex)[0..-2].each {|x| lines.delete x}
+    end  
+  end
+
+  class Split
+    
+    def initialize(xmlfile='dockerfiles.xml', repository: 'myrepo', 
+                   filepath: '.' , base_image: nil)
+      
+      @repository, @filepath, @xmlfile = repository, filepath, xmlfile
+      @base_image = base_image
       
     end
     
-    singlify_first lines, /^\s*FROM /
-    singlify_last lines, /^\s*CMD /
-    s = lines.join("\n")
+    def make()
 
-    rm_sources = /rm -rf \/var\/lib\/apt\/lists\/\*/
-    rm_sources_count = s.scan(rm_sources).length
-    
-    if rm_sources_count > 1 then
-      (rm_sources_count - 1).times { remove_command(rm_sources,s) }
+      s = File.read(@xmlfile)
+      doc = Rexle.new(s)
+
+      a = doc.root.xpath('//dockerfile')
+      a.each.with_index do |entry, i|
+
+        filename = entry.attributes[:id]
+        path2 = File.join(@filepath, filename)
+        FileUtils.mkdir path2
+        File.write File.join(path2, 'Dockerfile'), entry.texts.join.strip\
+            .sub(/<base_image>/, @base_image)
+
+        s = "sudo docker build -t %s/%s ." % [@repository, filename]
+        File.write build_path=File.join(path2, 'build.sh'), s
+        FileUtils.chmod_R 0755, build_path
+
+        if i == 0 then
+
+          builds = "sudo build.sh && " + a[1..-1].map \
+            {|x| "cd ../%s && sudo build.sh" % x.attributes[:id] }.join(" && ")
+
+          File.write buildall_path=File.join(path2, 'buildall.sh'), builds
+          FileUtils.chmod_R 0755, buildall_path
+        end
+
+      end
+
+      
     end
-    
-    @to_s = s
   end
-  
-  private
-  
-  def delete_all(lines, regex)
-    lines.reject! {|x| x[regex]}
-  end
-    
-  def merge_file(lines, path)
 
-    raw_buffer, type = RXFHelper.read(path)
-    buffer = raw_buffer[/^\bINCLUDE\b/] ? \
-          DockerfileMerge.new(raw_buffer).to_s : raw_buffer
-    
-    rows = buffer.lines.map(&:chomp)
-    lines << "\n\n# copied from " + path if type == :url
-    rows.grep(/^# Pull /).each {|x| rows.delete x}
-
-    lines.concat rows
-  end
-  
-  def remove_command(regex, s)    
-    s.sub!(/(?:\\?\s*&&\s+)#{regex}\s*$|(?:RUN\s+|\s*&&\s+||&&\s*\\\s*)?#{regex}(?:\s+\\)? */,'')
-  end
-  
-  # removes any matching lines after the 1st matching line
-  #
-  def singlify_first(lines, raw_regex)
-    
-    regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
-    i = 0
-    lines.reject! {|x| found = x[regex]; i += 1 if found;  i > 1 and found }
-  end
-  
-  # removes any matching lines before the last matching line
-  #
-  def singlify_last(lines, raw_regex)
-    
-    regex = raw_regex.is_a?(Regexp) ? raw_regex : Regexp.new(raw_regex)
-    lines.grep(regex)[0..-2].each {|x| lines.delete x}
-  end  
 end
